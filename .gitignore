@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Environments
+.venv/
+env/
+*.conda/
+
+# Build outputs
+build/
+install/
+log/
+
+# Training logs
+logs/
+outputs/
+runs/
+wandb/
+tensorboard/
+
+# System
+.DS_Store
+
+# Large videos
+*.mp4
+*.mov
+*.avi
+
+# Ignore model files by default
+*.pt
+*.pth
+*.onnx
+
+# But allow these four approved small files
+!g1_29dof/models/model_4999.pt
+!g1_29dof/models/model_7999.pt
+!g1_29dof/models/model_9999.pt
+!g1_29dof/models/policy.onnx

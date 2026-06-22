@@ -1,0 +1,148 @@
+diff --git a/deploy/include/FSM/FSMState.h b/deploy/include/FSM/FSMState.h
+index cbbc2af..662f81e 100644
+--- a/deploy/include/FSM/FSMState.h
++++ b/deploy/include/FSM/FSMState.h
+@@ -36,11 +36,21 @@ public:
+                 auto ast = p.Parse();
+                 auto func = unitree::common::dsl::Compile(*ast);
+                 registered_checks.emplace_back(
+-                    std::make_pair(
+-                        [func]()->bool{ return func(FSMState::lowstate->joystick); },
+-                        fsm_id
+-                    )
+-                );
++    		    std::make_pair(
++        		[func, target_fsm]()->bool{
++            			if (FSMState::keyboard) {
++                			const std::string k = FSMState::keyboard->key();
++
++			                if (target_fsm == "FixStand" && k == "f") return true;
++                			if (target_fsm == "Velocity" && k == "v") return true;
++                			if (target_fsm == "Passive" && k == "p") return true;
++            			}
++
++            		return func(FSMState::lowstate->joystick);
++        		},
++        		fsm_id
++		    )
++		);
+             }
+         }
+ 
+@@ -67,4 +77,4 @@ public:
+     static std::unique_ptr<LowCmd_t> lowcmd;
+     static std::shared_ptr<LowState_t> lowstate;
+     static std::shared_ptr<Keyboard> keyboard;
+-};
+\ No newline at end of file
++};
+diff --git a/deploy/robots/g1_29dof/config/policy/velocity/v0/params/deploy.yaml b/deploy/robots/g1_29dof/config/policy/velocity/v0/params/deploy.yaml
+index 54ebf64..0f5cd06 100644
+--- a/deploy/robots/g1_29dof/config/policy/velocity/v0/params/deploy.yaml
++++ b/deploy/robots/g1_29dof/config/policy/velocity/v0/params/deploy.yaml
+@@ -38,8 +38,8 @@ observations:
+     clip: null
+     scale: [1.0, 1.0, 1.0]
+     history_length: 5
+-  velocity_commands:
+-  # keyboard_velocity_commands:
++  # velocity_commands:
++  keyboard_velocity_commands:
+     params: {command_name: base_velocity}
+     clip: null
+     scale: [1.0, 1.0, 1.0]
+diff --git a/deploy/robots/g1_29dof/src/State_RLBase.cpp b/deploy/robots/g1_29dof/src/State_RLBase.cpp
+index 950df97..b3ec9c9 100644
+--- a/deploy/robots/g1_29dof/src/State_RLBase.cpp
++++ b/deploy/robots/g1_29dof/src/State_RLBase.cpp
+@@ -18,7 +18,7 @@ REGISTER_OBSERVATION(keyboard_velocity_commands)
+         {"s", {-1.0f, 0.0f, 0.0f}},
+         {"a", {0.0f, 1.0f, 0.0f}},
+         {"d", {0.0f, -1.0f, 0.0f}},
+-        {"q", {0.0f, 0.0f, 1.0f}},
++        {"q", {0.0f, 0.0f, 0.5f}},
+         {"e", {0.0f, 0.0f, -1.0f}}
+     };
+     std::vector<float> cmd = {0.0f, 0.0f, 0.0f};
+@@ -58,4 +58,4 @@ void State_RLBase::run()
+     for(int i(0); i < env->robot->data.joint_ids_map.size(); i++) {
+         lowcmd->msg_.motor_cmd()[env->robot->data.joint_ids_map[i]].q() = action[i];
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/scripts/rsl_rl/play.py b/scripts/rsl_rl/play.py
+index fd5ff85..804b0fb 100644
+--- a/scripts/rsl_rl/play.py
++++ b/scripts/rsl_rl/play.py
+@@ -56,7 +56,7 @@ import isaaclab_tasks  # noqa: F401
+ from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
+ from isaaclab.utils.assets import retrieve_file_path
+ from isaaclab.utils.dict import print_dict
+-from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
++from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
+ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, export_policy_as_jit, export_policy_as_onnx
+ from isaaclab_tasks.utils import get_checkpoint_path
+ 
+diff --git a/source/unitree_rl_lab/unitree_rl_lab/assets/robots/unitree.py b/source/unitree_rl_lab/unitree_rl_lab/assets/robots/unitree.py
+index e78413a..11c9493 100644
+--- a/source/unitree_rl_lab/unitree_rl_lab/assets/robots/unitree.py
++++ b/source/unitree_rl_lab/unitree_rl_lab/assets/robots/unitree.py
+@@ -17,8 +17,8 @@ from isaaclab.utils import configclass
+ 
+ from unitree_rl_lab.assets.robots import unitree_actuators
+ 
+-UNITREE_MODEL_DIR = "path/to/unitree_model"  # Replace with the actual path to your unitree_model directory
+-UNITREE_ROS_DIR = "path/to/unitree_ros"  # Replace with the actual path to your unitree_ros package
++UNITREE_MODEL_DIR = "/home/robot/l_lab/unitree_model"  # Replace with the actual path to your unitree_model directory
++UNITREE_ROS_DIR = "/home/robot/l_lab/unitree_ros/unitree_ros"  # Replace with the actual path to your unitree_ros package
+ 
+ 
+ @configclass
+diff --git a/source/unitree_rl_lab/unitree_rl_lab/tasks/locomotion/robots/g1/29dof/velocity_env_cfg.py b/source/unitree_rl_lab/unitree_rl_lab/tasks/locomotion/robots/g1/29dof/velocity_env_cfg.py
+index ea9b65b..3a636e5 100644
+--- a/source/unitree_rl_lab/unitree_rl_lab/tasks/locomotion/robots/g1/29dof/velocity_env_cfg.py
++++ b/source/unitree_rl_lab/unitree_rl_lab/tasks/locomotion/robots/g1/29dof/velocity_env_cfg.py
+@@ -255,13 +255,13 @@ class RewardsCfg:
+     base_angular_velocity = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
+     joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-0.001)
+     joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
+-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
++    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.06)
+     dof_pos_limits = RewTerm(func=mdp.joint_pos_limits, weight=-5.0)
+     energy = RewTerm(func=mdp.energy, weight=-2e-5)
+ 
+     joint_deviation_arms = RewTerm(
+         func=mdp.joint_deviation_l1,
+-        weight=-0.1,
++        weight=-0.25,
+         params={
+             "asset_cfg": SceneEntityCfg(
+                 "robot",
+@@ -287,7 +287,7 @@ class RewardsCfg:
+     )
+     joint_deviation_legs = RewTerm(
+         func=mdp.joint_deviation_l1,
+-        weight=-1.0,
++        weight=-1.2,
+         params={"asset_cfg": SceneEntityCfg("robot", joint_names=[".*_hip_roll_joint", ".*_hip_yaw_joint"])},
+     )
+ 
+@@ -298,7 +298,7 @@ class RewardsCfg:
+     # -- feet
+     gait = RewTerm(
+         func=mdp.feet_gait,
+-        weight=0.5,
++        weight=0.7,
+         params={
+             "period": 0.8,
+             "offset": [0.0, 0.5],
+@@ -309,7 +309,7 @@ class RewardsCfg:
+     )
+     feet_slide = RewTerm(
+         func=mdp.feet_slide,
+-        weight=-0.2,
++        weight=-0.25,
+         params={
+             "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
+             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_roll.*"),
