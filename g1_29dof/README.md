@@ -29,3 +29,16 @@ This folder documents my Unitree G1 29DoF velocity policy training and MuJoCo si
 ## Sim2Sim Startup
 
 See `commands/run_mujoco.md` and `commands/run_g1_ctrl.md`.
+
+## Training Logs
+
+Training progress was recorded at three major stages:
+
+- Around 5000 iterations: early stable locomotion
+- Around 8000 iterations: stronger baseline before reward adjustment
+- Around 10000 iterations: after reward and penalty adjustment
+
+See:
+
+- [Training Log Summary](results/training_summary.md)
+- [Training Screenshots](results/screenshots/)
